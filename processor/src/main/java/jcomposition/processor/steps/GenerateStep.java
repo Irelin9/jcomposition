@@ -58,7 +58,6 @@ public class GenerateStep extends AbstractStep {
                 getProcessingEnv().getMessager().printMessage(Diagnostic.Kind.ERROR, entry.getKey().getName()
                         + " annotation can be used only with interfaces", entry.getValue());
             }
-
             generate(MoreElements.asType(entry.getValue()));
         }
 
@@ -94,6 +93,7 @@ public class GenerateStep extends AbstractStep {
         TypeElementUtils.getBindClassType(typeElement, getProcessingEnv());
 
         String compositionName = TypeElementUtils.getCompositionName(typeElement, getProcessingEnv().getElementUtils());
+        getProcessingEnv().getMessager().printMessage(Diagnostic.Kind.NOTE, "compositionName: " + compositionName);
         Composition.MergeConflictPolicy mergeConflictPolicy = TypeElementUtils.getCompositionMergeConflictPolicy(
                 typeElement, getProcessingEnv().getElementUtils());
 
