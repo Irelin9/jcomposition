@@ -1,11 +1,12 @@
-package jcomposition.example.viper;
+package jcomposition.example.viper.base;
 
 
 import jcomposition.api.annotations.ShareProtected;
-import jcomposition.example.generics.ExampleClass;
+import jcomposition.example.viper.ViewCallbacksBase;
+import jcomposition.example.viper.base.interfaces.IView;
 
 
-public class View<V extends ExampleClass> implements IView<V> {
+public class View<V extends ViewCallbacksBase> implements IView<V> {
     @Override
     public void takeView(V view) {
         onTakeView(view);
@@ -23,7 +24,6 @@ public class View<V extends ExampleClass> implements IView<V> {
 
     @ShareProtected
     protected void onTakeView(V view) {
-
     }
 
     protected void lol() {

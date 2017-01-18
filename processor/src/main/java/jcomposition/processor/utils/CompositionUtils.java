@@ -2,6 +2,8 @@ package jcomposition.processor.utils;
 
 import com.google.auto.common.MoreElements;
 import com.google.auto.common.MoreTypes;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.squareup.javapoet.*;
 import jcomposition.api.IComposition;
 
@@ -19,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class CompositionUtils {
 
@@ -32,10 +35,6 @@ public class CompositionUtils {
              for (Map.Entry<TypeSpec, FieldSpec> entry : subtypesSpecs.entrySet()) {
                  builder.addType(entry.getKey());
                  builder.addField(entry.getValue());
-                 env.getMessager().printMessage(Diagnostic.Kind.NOTE
-                         , "Type: " + entry.getKey());
-                 env.getMessager().printMessage(Diagnostic.Kind.NOTE
-                         , "Field: " + entry.getValue());
              }
          } else {
              fieldSpecs = getFieldsSpecs(typeElement, env);
@@ -66,24 +65,36 @@ public class CompositionUtils {
             env.getMessager().printMessage(Diagnostic.Kind.NOTE
                     , "bindClassType: " + bindClassType.getSimpleName());
 
-            List<ExecutableElement> elements = new ArrayList<ExecutableElement>();
+            ImmutableSet<ExecutableElement> methods = MoreElements.getLocalAndInheritedMethods(bindClassType,
+                    env.getElementUtils());
+            List<ExecutableElement> pMethods = new ArrayList<ExecutableElement>();
+
+            for (ExecutableElement method : methods) {
+                if (method.getSimpleName().toString().equals("onTakeView")) {
+                    pMethods.add(method);
+                    break;
+                }
+            }
 
             TypeSpec.Builder typeBuilder = TypeSpec.classBuilder("Composition_" + bindClassType.getSimpleName())
                     .addModifiers(Modifier.FINAL, Modifier.PRIVATE)
                     .superclass(TypeName.get(bindClassType.asType()))
-                    .addMethods(getProtectedMethodsSpecs(typeElement, elements));
+                    .addMethods(getProtectedMethodsSpecs(typeElement, pMethods));
             TypeSpec typeSpec = typeBuilder.build();
 
+            boolean useInjection = TypeElementUtils.hasUseInjectionAnnotation(typeInterfaceElement)
+                    || TypeElementUtils.hasUseInjectionAnnotation(bindClassType);
+            String initializer = useInjection ? "null" : "new " + typeSpec.name + "()";
             FieldSpec.Builder specBuilder = FieldSpec.builder(ClassName.bestGuess(typeSpec.name), "composition_" + bindClassType.getSimpleName())
                     .addModifiers(Modifier.PROTECTED)
-                    .initializer("null");
+                    .initializer(initializer);
 
-            specs.put(typeBuilder.build(), specBuilder.build());
+            specs.put(typeSpec, specBuilder.build());
         }
         return specs;
     }
 
-    private static List<MethodSpec> getProtectedMethodsSpecs(TypeElement typeElement, List<ExecutableElement> elements) {
+    private static List<MethodSpec> getProtectedMethodsSpecs(TypeElement typeElement, Iterable<ExecutableElement> elements) {
         List<MethodSpec> result = new ArrayList<MethodSpec>();
         for (ExecutableElement element : elements) {
             List<MethodSpec> spec = getProtectedMethodSpec(element, typeElement);
@@ -97,17 +108,18 @@ public class CompositionUtils {
 
     private static List<MethodSpec> getProtectedMethodSpec(ExecutableElement executableElement, TypeElement typeElement) {
         List<MethodSpec> result = new ArrayList<MethodSpec>();
-        //DeclaredType declaredType = MoreTypes.asDeclared(typeElement.asType());
 
         MethodSpec.Builder builder = MethodSpec.overriding(executableElement);
         String statement = getProtectedExecutableStatement(executableElement);
-        if (statement != null) {
-            builder.addStatement(statement);
-            result.add(builder.build());
-        }
+        if (statement == null) return result;
+
+        builder.addStatement(statement);
+        MethodSpec spec = builder.build();
+        result.add(spec);
 
         MethodSpec.Builder sBuilder = MethodSpec.methodBuilder("_super_" + executableElement.getSimpleName().toString())
                 .addModifiers(Modifier.PUBLIC)
+                .addParameters(spec.parameters)
                 .returns(TypeName.get(executableElement.getReturnType()));
         String sStatement = getSuperProtectedExecutableStatement(executableElement);
         if (sStatement != null) {
